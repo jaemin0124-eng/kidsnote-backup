@@ -1,0 +1,27 @@
+name: Refresh Kidsnote session cookie
+
+on:
+  schedule:
+    # 10일마다 UTC 03:00 (KST 12:00) 실행 — 30일 만료보다 훨씬 여유있게 자주 갱신
+    - cron: '0 3 */10 * *'
+  workflow_dispatch: {}   # 필요하면 수동으로도 즉시 실행 가능 (Actions 탭 > Run workflow)
+
+jobs:
+  refresh-cookie:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests pynacl
+
+      - name: Refresh KIDSNOTE_SESSION_COOKIE
+        env:
+          KIDSNOTE_USERNAME: ${{ secrets.KIDSNOTE_USERNAME }}
+          KIDSNOTE_PASSWORD: ${{ secrets.KIDSNOTE_PASSWORD }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: python tools/kidsnote_fetch/refresh_kidsnote_cookie.py
