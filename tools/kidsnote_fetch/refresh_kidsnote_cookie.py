@@ -52,10 +52,12 @@ def _env(name: str) -> str:
 
 
 def login_and_get_session_id(username: str, password: str) -> str:
-    resp = requests.post(
+    sess = requests.Session()
+    sess.headers.update(HEADERS)
+    resp = sess.post(
         LOGIN_URL,
         json={"username": username, "password": password, "remember_me": True},
-        headers={**HEADERS, "Content-Type": "application/json"},
+        headers={"Content-Type": "application/json"},
         timeout=20,
     )
     if resp.status_code >= 400:
@@ -63,10 +65,27 @@ def login_and_get_session_id(username: str, password: str) -> str:
             f"로그인 실패 (status={resp.status_code}): {resp.text[:500]}\n"
             "아이디/비밀번호가 맞는지, 계정에 추가 인증(캡차 등)이 걸려있지 않은지 확인하세요."
         )
-    data = resp.json()
-    session_id = data.get("session_id")
+
+    # 1순위: 서버가 실제로 내려준 Set-Cookie 의 sessionid 값을 그대로 사용.
+    # (JSON body 의 session_id 필드는 값이 다를 수 있어서 신뢰하지 않는다.)
+    session_id = sess.cookies.get("sessionid", domain="www.kidsnote.com")
     if not session_id:
-        raise SystemExit(f"응답에 session_id 가 없습니다: {data}")
+        session_id = sess.cookies.get("sessionid", domain=".kidsnote.com")
+    if not session_id:
+        # 2순위 fallback: 혹시 모르니 JSON body 도 확인
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {}
+        session_id = data.get("session_id")
+
+    if not session_id:
+        cookie_names = [c.name for c in sess.cookies]
+        raise SystemExit(
+            "로그인 응답에서 sessionid 쿠키를 찾지 못했습니다.\n"
+            f"응답으로 받은 쿠키 이름들: {cookie_names}\n"
+            f"응답 본문 일부: {resp.text[:300]}"
+        )
     return session_id
 
 
